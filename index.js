@@ -41,7 +41,15 @@ app.use(bodyParser.urlencoded({
     extended: false
 }));
 app.use(bodyParser.json());
+app.use(function(req, res, next) {
+    console.log(req.headers);
+    next();
+});
 app.use(csurf());
+app.use(function(req, res, next) {
+    res.cookie('ChocChip', req.csrfToken());
+    next();
+});
 
 app.get('/', function(req, res){
     if(req.session.user) {
@@ -71,8 +79,8 @@ app.post('/register', function(req, res){
                         console.log("data inserted");
                         req.session.user = {
                             userID: results.rows[0].id,
-                            firstName: req.body.firstInput,
-                            lastName: req.body.lastInput,
+                            firstName: req.body.firstName,
+                            lastName: req.body.lastName,
                             loggedin: 'yes'
                         };
                         res.json({
@@ -134,35 +142,101 @@ app.post('/signin', function(req, res) {
 app.get('/userprofile', function(req, res) {
     if(req.session.user.loggedin == 'yes') {
         console.log(22);
-        var query = 'SELECT profile_pics.id, profile_pics.user_id AS user_id, profile_pics.profile_pic AS profile_pic, users.first_name AS first_name, users.last_name AS last_name FROM profile_pics LEFT JOIN users on profile_pics.user_id = users.id WHERE profile_pics.user_id = $1 ORDER BY profile_pics.id DESC LIMIT 1;';
+        var query = `SELECT profile_pics.id, profile_pics.user_id AS user_id, profile_pics.profile_pic AS profile_pic,
+        users.first_name AS first_name, users.last_name AS last_name
+        FROM profile_pics
+        LEFT JOIN users ON profile_pics.user_id = users.id
+        WHERE profile_pics.user_id = $1 ORDER BY profile_pics.id DESC LIMIT 1;`;
+        var query2 = `SELECT id, age, gender, bio, address_1, address_2, city, state, country, postal_code
+        FROM user_bios
+        WHERE user_bios.user_id = $1;`;
         db.query(query, [req.session.user.userID], function(err, results) {
-            console.log(req.session.user);
-            console.log(req.session.user.userID);
             if(err) {
                 console.log(err);
             } else {
                 if(results.rows[0]) {
-                    res.json({
-                        firstName: results.rows[0].first_name,
-                        lastName: results.rows[0].last_name,
-                        profilePicURL: results.rows[0].profile_pic
+                    db.query(query2, [req.session.user.userID], function(err, result2) {
+                        if(err) {
+                            console.log(err);
+                        } else {
+                            if(result2.rows[0]) {
+                                res.json({
+                                    firstName: results.rows[0].first_name,
+                                    lastName: results.rows[0].last_name,
+                                    profilePicURL: results.rows[0].profile_pic,
+                                    bio: result2.rows[0].bio,
+                                    age: result2.rows[0].age,
+                                    gender: result2.rows[0].gender,
+                                    address1: result2.rows[0].address_1,
+                                    address2: result2.rows[0].address_2,
+                                    state: result2.rows[0].state,
+                                    city: result2.rows[0].city,
+                                    country: result2.rows[0].country,
+                                    postalCode: result2.rows[0].postal_code
+                                });
+                            } else {
+                                res.json({
+                                    firstName: results.rows[0].first_name,
+                                    lastName: results.rows[0].last_name,
+                                    profilePicURL: results.rows[0].profile_pic,
+                                    bio: 'No Bio Information Available',
+                                    age: '',
+                                    gender: '',
+                                    address1: '',
+                                    address2: '',
+                                    city: '',
+                                    state: '',
+                                    country: '',
+                                    postalCode: '',
+                                });
+                            }
+                        }
                     });
                 } else {
-                    res.json({
-                        firstName: req.session.user.firstName,
-                        lastName: req.session.user.lastName,
-                        profilePicURL: '/man_heart.png'
+                    db.query(query2, [req.session.user.userID], function(err, result2) {
+                        if(err) {
+                            console.log(err);
+                        } else {
+                            if(result2.rows[0]) {
+                                res.json({
+                                    firstName: req.session.user.firstName,
+                                    lastName: req.session.user.lastName,
+                                    profilePicURL: '/man_heart.png',
+                                    bio: result2.rows[0].bio,
+                                    age: result2.rows[0].age,
+                                    gender: result2.rows[0].gender,
+                                    address1: result2.rows[0].address_1,
+                                    address2: result2.rows[0].address_2,
+                                    state: result2.rows[0].state,
+                                    city: result2.rows[0].city,
+                                    country: result2.rows[0].country,
+                                    postalCode: result2.rows[0].postal_code
+                                });
+                            } else {
+                                res.json({
+                                    firstName: req.session.user.firstName,
+                                    lastName: req.session.user.lastName,
+                                    profilePicURL: '/man_heart.png',
+                                    bio: 'No Bio Information Available',
+                                    age: '',
+                                    gender: '',
+                                    address1: '',
+                                    address2: '',
+                                    city: '',
+                                    state: '',
+                                    country: '',
+                                    postalCode: '',
+                                });
+                            }
+                        }
                     });
                 }
             }
         });
     } else {
-        res.json({
-            error: true
-        });
+        res.redirect('/welcome');
     }
 });
-
 
 app.post('/fileupload', uploader.single('file'), function(req, res) {
     if(req.file) {
@@ -194,6 +268,73 @@ app.post('/fileupload', uploader.single('file'), function(req, res) {
     }
 });
 
+app.post('/updatebio', function(req, res){
+    console.log("edit post initiated");
+    console.log(req.method, req.url);
+    console.log(req.body.bio, req.body.gender, req.body.age, req.body.city);
+    var query = 'SELECT * FROM user_bios WHERE user_id=$1;';
+    var query2 = 'UPDATE user_bios set bio=$1, age=$2, gender=$3, address_1=$4, address_2=$5, city=$6, state=$7, country=$8, postal_code=$9 WHERE user_id=$10;';
+    var query3 = 'INSERT INTO user_bios (user_id, bio, age, gender, address_1, address_2, city, state, country, postal_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id;';
+    db.query(query, [req.session.user.userID], function(err, results) {
+        if(results.rows[0]) {
+            db.query(query2, [req.body.bio, req.body.age, req.body.gender, req.body.address1, req.body.address2, req.body.city, req.body.state, req.body.country, req.body.postalCode, req.session.user.userID], function(err) {
+                if (err) {
+                    console.log(err);
+                } else {
+                    console.log("data updated");
+                    res.json({
+                        success: true
+                    });
+                }
+            });
+        } else {
+            db.query(query3, [req.session.user.userID, req.body.bio, req.body.age, req.body.gender,  req.body.address1, req.body.address2, req.body.city, req.body.state, req.body.country, req.body.postalCode], function(err) {
+                if (err) {
+                    console.log(err);
+                } else {
+                    console.log("data inserted");
+                    res.json({
+                        success: true
+                    });
+                }
+            });
+        }
+    });
+});
+
+app.get('/user/:id', function(req, res) {
+    console.log(req.params.id);
+    var query = `SELECT users.id, users.first_name AS first_name, users.last_name AS last_name, user_bios.bio AS bio, user_bios.gender AS gender,
+    user_bios.age AS age, user_bios.city AS city, user_bios.country AS country, profile_pics.profile_pic AS profile_pic
+    FROM users
+    LEFT JOIN user_bios ON user_bios.user_id = users.id
+    LEFT JOIN profile_pics ON profile_pics.user_id = users.id
+    WHERE users.id = $1;`;
+    db.query(query, [req.params.id], function(err, results) {
+        if(err) {
+            console.log(err);
+        } else {
+            res.json({
+                firstName: results.rows[0].first_name,
+                lastName: results.rows[0].last_name,
+                profilePicURL: results.rows[0].profile_pic,
+                bio: results.rows[0].bio,
+                age: results.rows[0].age,
+                gender: results.rows[0].gender,
+                city: results.rows[0].city,
+                country: results.rows[0].country
+            });
+        }
+    });
+});
+
+app.get('*', function(req, res) {
+    if(req.session.user.loggedin == 'yes') {
+        res.sendFile(__dirname + '/index.html');
+    } else {
+        res.redirect('/welcome');
+    }
+});
 
 app.listen(8080, function() {
     console.log("I'm listening.");

@@ -1,5 +1,5 @@
 import React from 'react';
-import {axios} from './axios';
+import axios from './axios';
 import { Router, Route, Link, IndexRoute, hashHistory } from 'react-router';
 
 export class ProfilePicUpload extends React.Component {
@@ -13,13 +13,13 @@ export class ProfilePicUpload extends React.Component {
         console.log(this);
         var file = this.state.file;
         console.log(file);
-
+        console.log(axios);
         var formData = new FormData();
         formData.append('file', file);
         axios({
             method: 'post',
             url: '/fileupload',
-            data: formData
+            data: formData,
         }).then((res) => {
             console.log(res);
             if(res.data.image) {
@@ -35,11 +35,14 @@ export class ProfilePicUpload extends React.Component {
     }
     render() {
         return (
-            <div id="upload-pic-form">
-                <h3 id="upload-title">Change Your Profile Pic</h3>
-                <div>Attention: Please do not add anything inappropriate as young people may be on this site.</div>
-                <input type="file" name="file" id="file-input" onChange={this.handleChange}></input>
-                <button onClick={(e) => this.handleClick(e)} type="submit" id="submit-button">Submit</button>
+            <div id="modal">
+                <div id="outside-form" onClick={() => this.props.setImage(this.props.profilePicURL)}></div>
+                <div id="upload-pic-form">
+                    <h3 id="upload-title">Change Your Profile Pic</h3>
+                    <div>Attention: Please do not add anything inappropriate as young people may be on this site.</div>
+                    <input type="file" name="file" id="file-input" onChange={this.handleChange}></input>
+                    <button onClick={(e) => this.handleClick(e)} type="submit" id="submit-button">Submit</button>
+                </div>
             </div>
         )
     }

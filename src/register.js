@@ -1,5 +1,5 @@
 import React from 'react';
-import {axios} from './axios';
+import axios from './axios';
 import { Router, Route, Link, IndexRoute, hashHistory } from 'react-router';
 
 export class Register extends React.Component {   //state functions need a render
