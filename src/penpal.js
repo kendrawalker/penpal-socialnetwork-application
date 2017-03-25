@@ -4,6 +4,10 @@ import {ProfilePicUpload} from './profilepicupload';
 import {Profile} from './profile';
 import {Bio} from './bio';
 import {EditBio} from './editbio';
+import {OtherPals} from './otherpals';
+import {MyPals} from './mypals';
+import {SignOut} from './signout';
+import {Router, Route, Link, IndexRoute, hashHistory} from 'react-router';
 
 export class PenPal extends React.Component {
     constructor(props) {
@@ -74,8 +78,16 @@ export class PenPal extends React.Component {
         });
         return (
             <div id="penpal">
-                <div id="logo">The Pen Pal Project</div>
-                <div id="icon-pic-holder"><ProfilePic firstName={this.state.firstName} profilePicURL={this.state.profilePicURL} openProfilePicUpload={openProfilePicUpload} /></div>
+                <div id="logo">
+                    <div id="logo-text">The Pen Pal Project</div>
+                    <div id="penpal-icons">
+                        <Link id="network-man" to="/mypals/friends/list"><img src="/networkman.png" /></Link>
+                        <Link id="home" to="#"><img id="home-pic" src="/homeicon.png" /></Link>
+                        <Link id="signout" to="/signout"><img id="exit-pic" src="/x.png" /></Link>
+                        <div id="icon-pic-holder"><ProfilePic firstName={this.state.firstName} profilePicURL={this.state.profilePicURL} openProfilePicUpload={openProfilePicUpload} /></div>
+                    </div>
+                    <div id="online-link-div"><Link id="online-pals-link" to="/online/now">View Pals Online Now</Link></div>
+                </div>
                 {this.state.showProfilePicUpload && <ProfilePicUpload setImage={this.setImage} profilePicURL={this.state.profilePicURL} />}
 
                 {children}

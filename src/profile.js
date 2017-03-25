@@ -1,6 +1,6 @@
 import React from 'react';
 import axios from './axios';
-import { Router, Route, Link, IndexRoute, hashHistory } from 'react-router';
+import {Router, Route, Link, IndexRoute, hashHistory} from 'react-router';
 import {Bio} from './bio';
 import {EditBio} from './editbio';
 import {ProfilePic} from './profilepic';
@@ -27,7 +27,7 @@ export class Profile extends React.Component {
         return (
             <div id="profile">
                 <div id="current-profile-bio">
-                    <ProfilePic profilePicURL={this.props.profilePicURL} />
+                    <ProfilePic profilePicURL={this.props.profilePicURL|| "/computer-user.png"} />
                     <div id="bio-text-holder">
                         <h3 className="full-name">{`${this.props.firstName} ${this.props.lastName}`}</h3>
                         <Bio

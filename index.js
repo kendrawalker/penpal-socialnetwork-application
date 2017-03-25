@@ -8,6 +8,8 @@ var cookieSession = require('cookie-session');
 var passwordAuth = require('./src/passwordauth');
 var multer = require('multer');
 var csurf = require('csurf');
+const server = require('http').Server(app);
+const io = require('socket.io')(server);
 
 if (process.env.NODE_ENV != 'production') {
     app.use(require('./build'));
@@ -42,13 +44,34 @@ app.use(bodyParser.urlencoded({
 }));
 app.use(bodyParser.json());
 app.use(function(req, res, next) {
-    console.log(req.headers);
+    console.log(req.method, req.url);
     next();
 });
 app.use(csurf());
 app.use(function(req, res, next) {
     res.cookie('ChocChip', req.csrfToken());
     next();
+});
+
+io.on('connect', function(socket) {
+    socket.on('disconnect', function() {
+    });
+});
+
+let online = [];
+app.get('/present/:socketId', function(req, res) {
+    console.log("socket obtained", req.session.user.userID);
+    let exists = online.find((item) => {
+        return item.socketId == req.params.socketId;
+    });
+    if (!exists) {
+        online.push({
+            id: req.session.user.userID,
+            socketId: req.params.socketId
+        });
+        console.log(online);
+    }
+    res.send();
 });
 
 app.get('/', function(req, res){
@@ -64,8 +87,6 @@ app.get('/welcome', function(req, res){
 });
 
 app.post('/register', function(req, res){
-    console.log(req.method, req.url);
-    console.log(req.body.firstName, req.body.lastName, req.body.email, req.body.password);
     if(req.body.firstName && req.body.lastName && req.body.email && req.body.password) {
         passwordAuth.hashPassword(req.body.password, function(err, hashedPass) {
             if (err) {
@@ -76,7 +97,7 @@ app.post('/register', function(req, res){
                     if (err) {
                         console.log(err);
                     } else {
-                        console.log("data inserted");
+                        console.log("user data inserted");
                         req.session.user = {
                             userID: results.rows[0].id,
                             firstName: req.body.firstName,
@@ -101,7 +122,6 @@ app.post('/register', function(req, res){
 
 app.post('/signin', function(req, res) {
     console.log("the sign in has initiated");
-    console.log(req.body.email, req.body.password);
     if(req.body.email && req.body.password) {
         var query = 'SELECT first_name, last_name, id, email_address, password FROM users WHERE email_address = $1;';
         db.query(query, [req.body.email], function (err, results) {
@@ -118,7 +138,6 @@ app.post('/signin', function(req, res) {
                             lastName: results.rows[0].last_name,
                             loggedin: 'yes'
                         };
-                        console.log(req.session.user);
                         res.json({
                             success: true
                         });
@@ -141,7 +160,6 @@ app.post('/signin', function(req, res) {
 
 app.get('/userprofile', function(req, res) {
     if(req.session.user.loggedin == 'yes') {
-        console.log(22);
         var query = `SELECT profile_pics.id, profile_pics.user_id AS user_id, profile_pics.profile_pic AS profile_pic,
         users.first_name AS first_name, users.last_name AS last_name
         FROM profile_pics
@@ -270,29 +288,30 @@ app.post('/fileupload', uploader.single('file'), function(req, res) {
 
 app.post('/updatebio', function(req, res){
     console.log("edit post initiated");
-    console.log(req.method, req.url);
-    console.log(req.body.bio, req.body.gender, req.body.age, req.body.city);
+    var age = req.body.age || null;
+    var zip = req.body.postalCode || null;
+    console.log(zip);
     var query = 'SELECT * FROM user_bios WHERE user_id=$1;';
     var query2 = 'UPDATE user_bios set bio=$1, age=$2, gender=$3, address_1=$4, address_2=$5, city=$6, state=$7, country=$8, postal_code=$9 WHERE user_id=$10;';
     var query3 = 'INSERT INTO user_bios (user_id, bio, age, gender, address_1, address_2, city, state, country, postal_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id;';
     db.query(query, [req.session.user.userID], function(err, results) {
         if(results.rows[0]) {
-            db.query(query2, [req.body.bio, req.body.age, req.body.gender, req.body.address1, req.body.address2, req.body.city, req.body.state, req.body.country, req.body.postalCode, req.session.user.userID], function(err) {
+            db.query(query2, [req.body.bio, age, req.body.gender, req.body.address1, req.body.address2, req.body.city, req.body.state, req.body.country, zip, req.session.user.userID], function(err) {
                 if (err) {
                     console.log(err);
                 } else {
-                    console.log("data updated");
+                    console.log("bio data updated");
                     res.json({
                         success: true
                     });
                 }
             });
         } else {
-            db.query(query3, [req.session.user.userID, req.body.bio, req.body.age, req.body.gender,  req.body.address1, req.body.address2, req.body.city, req.body.state, req.body.country, req.body.postalCode], function(err) {
+            db.query(query3, [req.session.user.userID, req.body.bio, age, req.body.gender,  req.body.address1, req.body.address2, req.body.city, req.body.state, req.body.country, zip], function(err) {
                 if (err) {
                     console.log(err);
                 } else {
-                    console.log("data inserted");
+                    console.log("bio data inserted");
                     res.json({
                         success: true
                     });
@@ -305,26 +324,256 @@ app.post('/updatebio', function(req, res){
 app.get('/user/:id', function(req, res) {
     console.log(req.params.id);
     var query = `SELECT users.id, users.first_name AS first_name, users.last_name AS last_name, user_bios.bio AS bio, user_bios.gender AS gender,
-    user_bios.age AS age, user_bios.city AS city, user_bios.country AS country, profile_pics.profile_pic AS profile_pic
+    user_bios.age AS age, user_bios.city AS city, user_bios.country AS country, profile_pics.profile_pic AS profile_pic, profile_pics.id
     FROM users
     LEFT JOIN user_bios ON user_bios.user_id = users.id
     LEFT JOIN profile_pics ON profile_pics.user_id = users.id
-    WHERE users.id = $1;`;
+    WHERE users.id = $1 ORDER BY profile_pics.id DESC LIMIT 1;`;
     db.query(query, [req.params.id], function(err, results) {
         if(err) {
             console.log(err);
         } else {
-            res.json({
-                firstName: results.rows[0].first_name,
-                lastName: results.rows[0].last_name,
-                profilePicURL: results.rows[0].profile_pic,
-                bio: results.rows[0].bio,
-                age: results.rows[0].age,
-                gender: results.rows[0].gender,
-                city: results.rows[0].city,
-                country: results.rows[0].country
+            var query2 = `SELECT requestor_id, recipient_id, status FROM friend_status WHERE ((requestor_id=$1 AND recipient_id=$2) OR (requestor_id=$2 AND recipient_id=$1)) AND status != 400;`;
+            db.query(query2, [req.session.user.userID, req.params.id], function(err, results2) {
+                if(err) {
+                    console.log(err);
+                } else if (!results2.rows[0]) {
+                    res.json({
+                        firstName: results.rows[0].first_name,
+                        lastName: results.rows[0].last_name,
+                        profilePicURL: results.rows[0].profile_pic,
+                        bio: results.rows[0].bio,
+                        age: results.rows[0].age,
+                        gender: results.rows[0].gender,
+                        city: results.rows[0].city,
+                        country: results.rows[0].country,
+                        status: 0,
+                        friendStatus: "Add Friend",
+                        requestor: true,
+                    });
+                } else if ((results2.rows[0].requestor_id == req.session.user.userID) && (results2.rows[0].status == 200)) {
+                    console.log(results2.rows[0].status, 9999999999999);
+                    res.json({
+                        firstName: results.rows[0].first_name,
+                        lastName: results.rows[0].last_name,
+                        profilePicURL: results.rows[0].profile_pic,
+                        bio: results.rows[0].bio,
+                        age: results.rows[0].age,
+                        gender: results.rows[0].gender,
+                        city: results.rows[0].city,
+                        country: results.rows[0].country,
+                        status: results2.rows[0].status,
+                        friendStatus: "Friend Request Pending",
+                        requestor: true
+                    });
+                } else if ((results2.rows[0].recipient_id == req.session.user.userID) && (results2.rows[0].status == 200)) {
+                    console.log(results2.rows[0].status, 9999999999999);
+                    res.json({
+                        firstName: results.rows[0].first_name,
+                        lastName: results.rows[0].last_name,
+                        profilePicURL: results.rows[0].profile_pic,
+                        bio: results.rows[0].bio,
+                        age: results.rows[0].age,
+                        gender: results.rows[0].gender,
+                        city: results.rows[0].city,
+                        country: results.rows[0].country,
+                        status: results2.rows[0].status,
+                        friendStatus: "Accept Pending Friend Request",
+                        requestor: false
+                    });
+                } else if (results2.rows[0].status == 300) {
+                    console.log(results2.rows[0].status, 9999999999999);
+                    res.json({
+                        firstName: results.rows[0].first_name,
+                        lastName: results.rows[0].last_name,
+                        profilePicURL: results.rows[0].profile_pic,
+                        bio: results.rows[0].bio,
+                        age: results.rows[0].age,
+                        gender: results.rows[0].gender,
+                        city: results.rows[0].city,
+                        country: results.rows[0].country,
+                        status: results2.rows[0].status,
+                        friendStatus: "Remove Friend",
+                        requestor: true
+                    });
+                } else if (results2.rows[0].status == 100) {
+                    console.log(results2.rows[0].status, 9999999999999);
+                    res.json({
+                        firstName: results.rows[0].first_name,
+                        lastName: results.rows[0].last_name,
+                        profilePicURL: results.rows[0].profile_pic,
+                        bio: results.rows[0].bio,
+                        age: results.rows[0].age,
+                        gender: results.rows[0].gender,
+                        city: results.rows[0].city,
+                        country: results.rows[0].country,
+                        status: results2.rows[0].status,
+                        friendStatus: "Add Friend",
+                        requestor: true
+                    });
+                } else {
+                    console.log(results2.rows[0].status, "didn't meet any criteria");
+                }
             });
         }
+    });
+});
+
+app.post('/updatefriendstatus', function(req, res) {
+    console.log(req.body.status, 777777777777);
+    var query1 = 'INSERT INTO friend_status (requestor_id, recipient_id, status, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id;';
+    var query2 = 'UPDATE friend_status SET status=$1, updated_at=NOW() WHERE (recipient_id=$2 and requestor_id=$3) OR (recipient_id=$3 and requestor_id=$2) AND status !=400;';
+    if(req.body.status==0) {
+        db.query(query1, [req.session.user.userID, req.body.pal, 200], function(err) {
+            if(err) {
+                console.log(err);
+            } else {
+                res.json({
+                    status: 200,
+                    friendStatus: "Friend Request Pending",
+                    requestor: true
+                });
+            }
+        });
+    } else if (req.body.status == 100) {
+        db.query(query2, [200, req.session.user.userID, req.body.pal], function(err) {
+            if(err) {
+                console.log(err);
+            } else {
+                res.json({
+                    status: 200,
+                    friendStatus: "Friend Request Pending",
+                    requestor: true
+                });
+            }
+        });
+    } else if (req.body.status==200 && req.body.requestor) {
+        res.json({
+            status: req.body.status,
+            friendStatus: "Friend Request Pending",
+            requestor: true
+        });
+    } else if (req.body.status==200 && !req.body.requestor) {
+        db.query(query2, [300, req.session.user.userID, req.body.pal], function(err) {
+            if(err) {
+                console.log(err);
+            } else {
+                res.json({
+                    status: 300,
+                    friendStatus: "Remove Friend",
+                    requestor: true
+                });
+            }
+        });
+    } else if (req.body.status==300) {
+        db.query(query2, [400, req.session.user.userID, req.body.pal], function(err) {
+            if(err) {
+                console.log(err);
+            } else {
+                res.json({
+                    status: 400,
+                    friendStatus: "Removed",
+                    requestor: true
+                });
+            }
+        });
+    }
+});
+
+
+app.get('/mypals/:friends', function(req, res) {
+    var friendState = req.params.friends;
+    console.log(friendState);
+    console.log("starting to get the pals");
+    var query = `SELECT users.id, users.first_name, users.last_name, users.id, MAX(profile_pics.profile_pic) AS image, user_bios.city
+    FROM users
+    LEFT JOIN profile_pics ON users.id = profile_pics.user_id
+    LEFT JOIN user_bios ON users.id = user_bios.user_id
+    LEFT JOIN friend_status ON (users.id = friend_status.recipient_id OR users.id = friend_status.requestor_id)
+    WHERE (friend_status.requestor_id =$1 OR friend_status.recipient_id =$1) AND users.id !=$1 AND friend_status.status = 300
+    GROUP BY users.id, users.first_name, users.last_name, users.id, user_bios.city;`;
+    var query2 = `SELECT users.id, users.first_name, users.last_name, MAX(profile_pics.profile_pic) AS image, user_bios.city
+    FROM users
+    LEFT JOIN profile_pics ON users.id = profile_pics.user_id
+    LEFT JOIN user_bios ON users.id = user_bios.user_id
+    WHERE users.id not in ( SELECT users.id
+    FROM users
+    LEFT JOIN friend_status ON (users.id = friend_status.recipient_id OR users.id = friend_status.requestor_id)
+    WHERE (recipient_id = $1 OR requestor_id = $1)) AND users.id !=$1
+    GROUP BY users.id, users.first_name, users.last_name, users.id, user_bios.city;`;
+    var query3 = `SELECT users.id, users.first_name, users.last_name, users.id, MAX(profile_pics.profile_pic) AS image, user_bios.city
+    FROM users
+    LEFT JOIN profile_pics ON users.id = profile_pics.user_id
+    LEFT JOIN user_bios ON users.id = user_bios.user_id
+    LEFT JOIN friend_status ON users.id = friend_status.requestor_id
+    WHERE friend_status.recipient_id = $1 AND friend_status.status = 200
+    GROUP BY users.id, users.first_name, users.last_name, users.id, user_bios.city;`;
+    if (friendState == "friends") {
+        db.query(query, [req.session.user.userID], function(err, results) {
+            if(err) {
+                console.log(err);
+            } else {
+                res.json({
+                    pals: results.rows
+                });
+            }
+        });
+    } else if (friendState == "nonFriends") {
+        db.query(query2, [req.session.user.userID], function(err, results2) {
+            if(err) {
+                console.log(err);
+            } else {
+                res.json({
+                    pals: results2.rows
+                });
+            }
+        });
+    } else if (friendState == "pendingFriends") {
+        db.query(query3, [req.session.user.userID], function(err, results3) {
+            if(err) {
+                console.log(err);
+            } else {
+                res.json({
+                    pals: results3.rows
+                });
+            }
+        });
+    }
+});
+
+app.get('/onlinenow/pals', function(req, res) {
+    let ids = online.map((item) => item.id);
+    console.log(online);
+    ids = ids.filter((id, idx) => ids.indexOf(id) == idx);
+    var query = `SELECT users.id, users.first_name, users.last_name, users.id, MAX(profile_pics.profile_pic) AS image, user_bios.city
+    FROM users
+    LEFT JOIN profile_pics ON users.id = profile_pics.user_id
+    LEFT JOIN user_bios ON users.id = user_bios.user_id
+    WHERE users.id in (${ids})
+    GROUP BY users.id, users.first_name, users.last_name, users.id, user_bios.city;`;
+    db.query(query, function(err, results) {
+        if(err) {
+            console.log(err);
+            res.json({
+                error: true
+            });
+        } else {
+            res.json({
+                pals: results.rows
+            });
+        }
+    });
+});
+
+//////logout
+app.get('/signout/user', function(req, res) {
+    console.log("signing user out");
+    req.session.destroy(function() {
+        console.log("destroying cookie");
+        res.json({
+            success: true
+        });
+        res.redirect('/');
     });
 });
 
@@ -336,6 +585,6 @@ app.get('*', function(req, res) {
     }
 });
 
-app.listen(8080, function() {
+server.listen(8080, function() {
     console.log("I'm listening.");
 });

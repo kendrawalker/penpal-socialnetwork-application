@@ -48,7 +48,7 @@ export class SignIn extends React.Component {   //state functions need a render
                     <input type="password" class="text-input" id="text-input-password" name="password" onChange={this.handleChange} /><p>Password</p>
                 </div>
                 <button onClick={(e) => this.handleClick(e)} type="submit" id="submit-button" >Submit</button>
-                <h4>Return back to <Link to="#">Register</Link></h4>
+                <h4>Return back to <Link to="/#">Register</Link></h4>
             </div>
         )
     }

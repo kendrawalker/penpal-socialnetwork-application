@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS friend_status;
+
+CREATE TABLE friend_status (
+id SERIAL PRIMARY KEY,
+requestor_id INTEGER NOT NULL,
+recipient_id INTEGER NOT NULL,
+status INTEGER NOT NULL DEFAULT 100,
+created_at TIMESTAMP,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -54,7 +54,7 @@ export class Register extends React.Component {   //state functions need a rende
                     <input type="password" class="text-input" id="text-input-password" name="password" onChange={this.handleChange} /><p>Password</p>
                 </div>
                 <button onClick={(e) => this.handleClick(e)} type="submit" id="submit-button" >Submit</button>
-                <h4>If you are already a member, please <Link to="signin">Sign In</Link></h4>
+                <h4>If you are already a member, please <Link to="/signin">Sign In</Link></h4>
             </div>
         )
     }
