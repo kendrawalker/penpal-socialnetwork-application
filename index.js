@@ -568,13 +568,11 @@ app.get('/onlinenow/pals', function(req, res) {
 //////logout
 app.get('/signout/user', function(req, res) {
     console.log("signing user out");
-    req.session.destroy(function() {
-        console.log("destroying cookie");
-        res.json({
-            success: true
-        });
-        res.redirect('/');
+    req.session = null;
+    res.json({
+        success: true
     });
+    res.redirect('/welcome');
 });
 
 app.get('*', function(req, res) {

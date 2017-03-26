@@ -7,7 +7,7 @@ export function Welcome(props) {
     return (
         <div id="welcome-div">
             <h1 id="title">The Pen Pal Project
-                <div id="subtitle">Find and Connect with Other Pals From Around the World</div>
+                <div id="subtitle">Connect with Other Pals From Around the World</div>
             </h1>
             {props.children}
         </div>
