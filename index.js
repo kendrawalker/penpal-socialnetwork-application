@@ -1,7 +1,8 @@
 const express = require('express');
 const app = express();
 var spicedPg = require('spiced-pg');
-var db = spicedPg(process.env.DATABASE_URL || 'postgres:kendr:soybean88@localhost:5432/social_network');
+var dbdata = require('./db_pass');
+var db = spicedPg(process.env.DATABASE_URL || `postgres:${dbdata.user}:${dbdata.pass}@localhost:5432/social_network`);
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 var cookieSession = require('cookie-session');
